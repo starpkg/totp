@@ -5,7 +5,7 @@ package totp
 // Sections:
 //   - generate/validate round-trip at a fixed time
 //   - new_secret
-//   - option validation errors
+//   - option validation errors (bad digits/algorithm, empty secret, non-positive period)
 
 import (
 	"strings"
@@ -98,9 +98,14 @@ ok = validate(code, secret, time=1000000000)
 
 func TestOptionErrors(t *testing.T) {
 	cases := map[string]string{
-		"bad digits":    `load("totp","generate_code"); generate_code("JBSWY3DPEHPK3PXP", digits=7)`,
-		"bad algorithm": `load("totp","generate_code"); generate_code("JBSWY3DPEHPK3PXP", algorithm="MD5")`,
-		"empty issuer":  `load("totp","new_secret"); new_secret("", "a@b.com")`,
+		"bad digits":               `load("totp","generate_code"); generate_code("JBSWY3DPEHPK3PXP", digits=7)`,
+		"bad algorithm":            `load("totp","generate_code"); generate_code("JBSWY3DPEHPK3PXP", algorithm="MD5")`,
+		"empty issuer":             `load("totp","new_secret"); new_secret("", "a@b.com")`,
+		"generate empty secret":    `load("totp","generate_code"); generate_code("")`,
+		"generate zero period":     `load("totp","generate_code"); generate_code("JBSWY3DPEHPK3PXP", period=0)`,
+		"generate negative period": `load("totp","generate_code"); generate_code("JBSWY3DPEHPK3PXP", period=-5)`,
+		"validate empty secret":    `load("totp","validate"); validate("123456", "")`,
+		"validate zero period":     `load("totp","validate"); validate("123456", "JBSWY3DPEHPK3PXP", period=0)`,
 	}
 	for name, script := range cases {
 		t.Run(name, func(t *testing.T) {
