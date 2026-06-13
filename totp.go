@@ -5,6 +5,7 @@ package totp
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/1set/starlet"
@@ -56,7 +57,7 @@ func genConfigOption[T any](name, description string, defaultValue T) *base.Conf
 	return base.NewConfigOption(defaultValue).
 		WithName(name).
 		WithDescription(description).
-		WithEnvVar("TOTP_" + upper(name))
+		WithEnvVar(strings.ToUpper(ModuleName + "_" + name))
 }
 
 // LoadModule returns the Starlark module loader.
@@ -115,6 +116,12 @@ func (m *Module) generateCode(thread *starlark.Thread, b *starlark.Builtin, args
 	); err != nil {
 		return none, err
 	}
+	if secret == "" {
+		return none, fmt.Errorf("%s: secret must not be empty", b.Name())
+	}
+	if period <= 0 {
+		return none, fmt.Errorf("%s: period must be positive", b.Name())
+	}
 	d, err := resolveDigits(digits)
 	if err != nil {
 		return none, fmt.Errorf("%s: %w", b.Name(), err)
@@ -148,6 +155,12 @@ func (m *Module) validate(thread *starlark.Thread, b *starlark.Builtin, args sta
 		"digits?", &digits, "skew?", &skew, "algorithm?", &algorithm,
 	); err != nil {
 		return none, err
+	}
+	if secret == "" {
+		return none, fmt.Errorf("%s: secret must not be empty", b.Name())
+	}
+	if period <= 0 {
+		return none, fmt.Errorf("%s: period must be positive", b.Name())
 	}
 	if skew < 0 {
 		return none, fmt.Errorf("%s: skew must not be negative", b.Name())
@@ -210,16 +223,4 @@ func (m *Module) newSecret(thread *starlark.Thread, b *starlark.Builtin, args st
 		"secret": starlark.String(key.Secret()),
 		"url":    starlark.String(key.URL()),
 	}), nil
-}
-
-func upper(s string) string {
-	out := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'a' && c <= 'z' {
-			c -= 'a' - 'A'
-		}
-		out[i] = c
-	}
-	return string(out)
 }
