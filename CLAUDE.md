@@ -42,9 +42,11 @@ newer local toolchain:
 docker run --rm -v "$PWD":/src -v "$HOME/go/pkg/mod":/go/pkg/mod -w /src golang:1.19 go test -race -count=1 ./...
 ```
 
-Integration scripts under `../test/totp/*.star` live in the **private
-`starpkg/test` repo** and auto-skip when that directory is absent (e.g. in CI and
-on a fresh clone); this module's unit tests are entirely self-contained.
+This module's tests are **entirely self-contained** — `totp_test.go` drives real
+Starlark in-process and needs no external fixtures. (Integration scripts under
+`../test/totp/*.star` in the **private `starpkg/test` repo** are not yet wired in;
+when they are, the harness must auto-skip if that directory is absent — see Test
+organization.)
 
 ## Architecture (the part that spans files)
 
