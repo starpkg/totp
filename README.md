@@ -1,6 +1,8 @@
 # 🔑 `totp` — TOTP one-time passwords for Starlark
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/starpkg/totp.svg)](https://pkg.go.dev/github.com/starpkg/totp)
+[![codecov](https://codecov.io/gh/starpkg/totp/graph/badge.svg)](https://codecov.io/gh/starpkg/totp)
+![binary footprint](https://img.shields.io/badge/binary_footprint-%2B0.1_MB-blue)
 
 Generate and validate [TOTP](https://datatracker.ietf.org/doc/html/rfc6238)
 (time-based one-time passwords, RFC 6238) from Starlark, built on
