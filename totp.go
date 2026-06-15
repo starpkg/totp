@@ -29,6 +29,21 @@ const (
 	defaultDigits = 6
 )
 
+// Upper bounds on script-supplied options. These are additive safety rails:
+// the values they reject are far beyond any legitimate TOTP use (the defaults
+// are skew=1 and secret_size=20), so they change no real script's behavior —
+// they only stop a hostile script from driving the host into an unbounded
+// O(skew) HMAC loop (each extra skew period adds two more HMAC computations in
+// totp.ValidateCustom) or an unbounded secret allocation in totp.Generate.
+const (
+	// maxSkew caps validate's skew window. ±1000 periods is >8 hours at the
+	// 30s default — vastly more tolerance than any real 2FA flow needs.
+	maxSkew = 1000
+	// maxSecretSize caps new_secret's secret_size in bytes. 1024 bytes is
+	// 8192 bits, far above the 20-byte (160-bit) RFC-recommended default.
+	maxSecretSize = 1024
+)
+
 var none = starlark.None
 
 // Module wraps a ConfigurableModule with TOTP functions.
@@ -165,6 +180,9 @@ func (m *Module) validate(thread *starlark.Thread, b *starlark.Builtin, args sta
 	if skew < 0 {
 		return none, fmt.Errorf("%s: skew must not be negative", b.Name())
 	}
+	if skew > maxSkew {
+		return none, fmt.Errorf("%s: skew must not exceed %d", b.Name(), maxSkew)
+	}
 	d, err := resolveDigits(digits)
 	if err != nil {
 		return none, fmt.Errorf("%s: %w", b.Name(), err)
@@ -203,6 +221,9 @@ func (m *Module) newSecret(thread *starlark.Thread, b *starlark.Builtin, args st
 	}
 	if secretSize <= 0 {
 		return none, fmt.Errorf("%s: secret_size must be positive", b.Name())
+	}
+	if secretSize > maxSecretSize {
+		return none, fmt.Errorf("%s: secret_size must not exceed %d", b.Name(), maxSecretSize)
 	}
 	d, err := resolveDigits(digits)
 	if err != nil {
