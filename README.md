@@ -7,6 +7,13 @@ Generate and validate [TOTP](https://datatracker.ietf.org/doc/html/rfc6238)
 [pquerna/otp](https://github.com/pquerna/otp). Pure computation — no network, no
 storage.
 
+`starpkg` provides support for necessary **local** operations plus simple
+abstractions over common **online** services, for ease of use. `totp` is a
+**local-capability** module: it is self-contained two-factor-auth math (HMAC over
+the time counter) with no I/O, so a script can mint a secret, render the
+provisioning URI for an authenticator app, and verify the codes users type —
+all without leaving the sandbox.
+
 ## Installation
 
 ```bash
@@ -55,5 +62,21 @@ validate(code, secret, time=1000000000)   # => True
 | `default_period` | `int` | `30` | Default TOTP period in seconds |
 | `default_digits` | `int` | `6` | Default number of code digits (6 or 8) |
 
-Settable via `TOTP_DEFAULT_PERIOD` / `TOTP_DEFAULT_DIGITS`. A Go host can inject a
-clock with `totp.NewModuleWithClock`.
+Settable via `TOTP_DEFAULT_PERIOD` / `TOTP_DEFAULT_DIGITS` (the env-var names are
+derived from `ModuleName`). These are *defaults* only — every per-call `period` /
+`digits` keyword overrides them.
+
+### Host-side time control
+
+`totp.NewModule()` reads the wall clock. A Go host that wants deterministic or
+controlled time — tests, replay, a fixed evaluation instant — constructs the
+module with an injected clock:
+
+```go
+fixed := time.Unix(1000000000, 0)
+module := totp.NewModuleWithClock(func() time.Time { return fixed })
+```
+
+Scripts can also pin the evaluation instant per call with the `time` keyword (a
+Unix timestamp; `0` means "use the module clock"), which is the script-visible
+equivalent and what the round-trip examples above rely on.
