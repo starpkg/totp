@@ -20,6 +20,7 @@ of starpkg module: a deterministic function library with a small config surface.
 
 Layer position: depends downward on `starpkg/base` (the module/config system),
 `1set/starlet` (the Machine + `ModuleLoader`), and transitively `1set/starlight`
+
 + `go.starlark.net`. Nothing in the ecosystem depends on it.
 
 ## Dev commands
@@ -53,20 +54,20 @@ organization.)
 The module is a thin, single-file bridge — there is no per-feature file fan-out
 because the surface is three pure functions over one third-party SDK.
 
-- **`totp.go`** — the entire module. It holds:
-  - `Module` — wraps a `base.ConfigurableModule` (+ its `ConfigurableModuleExt`
++ **`totp.go`** — the entire module. It holds:
+  + `Module` — wraps a `base.ConfigurableModule` (+ its `ConfigurableModuleExt`
     for typed config reads) and a `clock func() time.Time`. `NewModule()` uses
     `time.Now`; `NewModuleWithClock(clock)` injects one.
-  - Config: two options registered via
+  + Config: two options registered via
     `base.NewConfigurableModuleWithConfigOptions` —
     `default_period` (30) and `default_digits` (6) — each given a name,
     description, and an env var derived from `ModuleName` (`TOTP_DEFAULT_PERIOD`,
     `TOTP_DEFAULT_DIGITS`) by `genConfigOption`.
-  - `LoadModule()` — registers the three script-facing builtins:
+  + `LoadModule()` — registers the three script-facing builtins:
     **`generate_code`**, **`validate`**, **`new_secret`**.
-  - The three handler methods (`generateCode`, `validate`, `newSecret`) — each
+  + The three handler methods (`generateCode`, `validate`, `newSecret`) — each
     unpacks args, validates options, and delegates to the SDK.
-  - Helpers: `resolveDigits` (6→`DigitsSix`, 8→`DigitsEight`, else error),
+  + Helpers: `resolveDigits` (6→`DigitsSix`, 8→`DigitsEight`, else error),
     `resolveAlgorithm` (`""`/`SHA1`/`SHA256`/`SHA512` → `otp.Algorithm`, else
     error), and `at(ts)` (the time resolver: `ts>0` → `time.Unix(ts,0)`, else the
     module clock).
@@ -118,25 +119,25 @@ new file.
 
 Three layers must stay in sync (enforced by the doc standard,
 `plan/starpkg文档标准（DOC-STD）`):
-- **`README.md`** — every script-facing builtin documented as a backtick
++ **`README.md`** — every script-facing builtin documented as a backtick
   whole-word with its correct signature/args/return; host levers
   (`NewModuleWithClock`, the env vars) documented too. The doc-coverage gate
   (`doccov`) fails CI if a registered builtin is missing from the README.
-- **GoDoc** — package comment + a doc comment on every exported symbol
++ **GoDoc** — package comment + a doc comment on every exported symbol
   (`ModuleName`, `Module`, `NewModule`, `NewModuleWithClock`, `LoadModule`),
   first word = the symbol name (gated by `revive`'s `exported` rule in CI).
-- **`CLAUDE.md`** — this file.
++ **`CLAUDE.md`** — this file.
 
 ## Release discipline
 
-- **Floor = go 1.19** (this repo's `go.mod`); a repo's floor only rises in its
++ **Floor = go 1.19** (this repo's `go.mod`); a repo's floor only rises in its
   own isolated pin-upgrade PR.
-- **CI matrix** = `[1.19.x, 1.25.x]` via the centralized reusable workflow in
++ **CI matrix** = `[1.19.x, 1.25.x]` via the centralized reusable workflow in
   `1set/meta` (`go-ci.yml`, pinned to a commit SHA; `doc-coverage: true` adds the
   README gate).
-- **Pin upgrade is the last PR of the series** — `go.starlark.net` + `1set/*`
++ **Pin upgrade is the last PR of the series** — `go.starlark.net` + `1set/*`
   deps + go floor move together in one isolated PR, after all fixes; never tag
   before it merges.
-- **Bumping the version, the go floor, or tagging are user-confirmed actions** —
++ **Bumping the version, the go floor, or tagging are user-confirmed actions** —
   never tag autonomously; draft title + notes and get explicit approval; default
   to patch bumps; published tags are immutable.
