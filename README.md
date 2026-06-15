@@ -31,6 +31,10 @@ go get github.com/starpkg/totp
 | `new_secret` | `new_secret(issuer, account_name, period=30, digits=6, algorithm="SHA1", secret_size=20) -> struct` | Mint a new secret; returns `struct(secret, url)` where `url` is an `otpauth://` provisioning URI. |
 
 `digits` must be `6` or `8`; `algorithm` must be `SHA1`, `SHA256`, or `SHA512`.
+`skew` must be in `0..1000` and `secret_size` in `1..1024` — these caps are far
+above any real use (the defaults are `skew=1`, `secret_size=20`) and exist only
+to keep a hostile script from forcing an unbounded validation loop or secret
+allocation on the host.
 
 ## Usage
 
