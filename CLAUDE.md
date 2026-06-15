@@ -119,14 +119,15 @@ new file.
 
 Three layers must stay in sync (enforced by the doc standard,
 `plan/starpkg文档标准（DOC-STD）`):
-+ **`README.md`** — every script-facing builtin documented as a backtick
+
+- **`README.md`** — every script-facing builtin documented as a backtick
   whole-word with its correct signature/args/return; host levers
   (`NewModuleWithClock`, the env vars) documented too. The doc-coverage gate
   (`doccov`) fails CI if a registered builtin is missing from the README.
-+ **GoDoc** — package comment + a doc comment on every exported symbol
+- **GoDoc** — package comment + a doc comment on every exported symbol
   (`ModuleName`, `Module`, `NewModule`, `NewModuleWithClock`, `LoadModule`),
   first word = the symbol name (gated by `revive`'s `exported` rule in CI).
-+ **`CLAUDE.md`** — this file.
+- **`CLAUDE.md`** — this file.
 
 ## Release discipline
 
