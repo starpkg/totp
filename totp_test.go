@@ -84,6 +84,40 @@ ok = validate(code, secret, time=1000000000, digits=8)
 	}
 }
 
+// TestValidateWrongLengthReturnsFalse pins the documented contract: validate
+// returns True/False, so a malformed (wrong-length or empty) code is a clean
+// False, not a thrown error — otherwise `if validate(user_input, secret):` blows
+// up on a mistyped code and an attacker can force every call to error.
+func TestValidateWrongLengthReturnsFalse(t *testing.T) {
+	res, err := run(t, `
+load("totp", "validate")
+secret = "JBSWY3DPEHPK3PXP"
+short = validate("123", secret, time=1000000000)     # 3 digits, expects 6
+empty = validate("", secret, time=1000000000)         # empty
+longc = validate("1234567", secret, time=1000000000)  # 7 digits, expects 6
+`)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	for _, k := range []string{"short", "empty", "longc"} {
+		if res[k] != false {
+			t.Errorf("validate(%s) = %v, want false (not an error)", k, res[k])
+		}
+	}
+}
+
+// TestValidateInvalidSecretStillErrors keeps genuine faults surfacing: an
+// invalid base32 secret is a real error, not a silent False.
+func TestValidateInvalidSecretStillErrors(t *testing.T) {
+	_, err := run(t, `
+load("totp", "validate")
+validate("123456", "!!!not-base32!!!", time=1000000000)
+`)
+	if err == nil {
+		t.Fatal("expected an error for an invalid base32 secret, got nil")
+	}
+}
+
 // --- new_secret --------------------------------------------------------------
 
 func TestNewSecret(t *testing.T) {

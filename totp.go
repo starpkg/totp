@@ -4,6 +4,7 @@
 package totp
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -109,6 +110,27 @@ func resolveAlgorithm(name string) (otp.Algorithm, error) {
 	}
 }
 
+// resolveCommonOpts validates the secret/period and resolves the digits and
+// algorithm shared by generate_code and validate, wrapping any error with the
+// builtin name. It keeps the validate-before-call invariant in one place.
+func resolveCommonOpts(b *starlark.Builtin, secret string, period, digits int, algorithm string) (otp.Digits, otp.Algorithm, error) {
+	if secret == "" {
+		return 0, 0, fmt.Errorf("%s: secret must not be empty", b.Name())
+	}
+	if period <= 0 {
+		return 0, 0, fmt.Errorf("%s: period must be positive", b.Name())
+	}
+	d, err := resolveDigits(digits)
+	if err != nil {
+		return 0, 0, fmt.Errorf("%s: %w", b.Name(), err)
+	}
+	a, err := resolveAlgorithm(algorithm)
+	if err != nil {
+		return 0, 0, fmt.Errorf("%s: %w", b.Name(), err)
+	}
+	return d, a, nil
+}
+
 // at resolves the evaluation time: ts>0 means that Unix second, else the clock.
 func (m *Module) at(ts int64) time.Time {
 	if ts > 0 {
@@ -131,19 +153,9 @@ func (m *Module) generateCode(thread *starlark.Thread, b *starlark.Builtin, args
 	); err != nil {
 		return none, err
 	}
-	if secret == "" {
-		return none, fmt.Errorf("%s: secret must not be empty", b.Name())
-	}
-	if period <= 0 {
-		return none, fmt.Errorf("%s: period must be positive", b.Name())
-	}
-	d, err := resolveDigits(digits)
+	d, a, err := resolveCommonOpts(b, secret, period, digits, algorithm)
 	if err != nil {
-		return none, fmt.Errorf("%s: %w", b.Name(), err)
-	}
-	a, err := resolveAlgorithm(algorithm)
-	if err != nil {
-		return none, fmt.Errorf("%s: %w", b.Name(), err)
+		return none, err
 	}
 	code, err := totp.GenerateCodeCustom(secret, m.at(ts), totp.ValidateOpts{
 		Period: uint(period), Digits: d, Algorithm: a,
@@ -171,30 +183,29 @@ func (m *Module) validate(thread *starlark.Thread, b *starlark.Builtin, args sta
 	); err != nil {
 		return none, err
 	}
-	if secret == "" {
-		return none, fmt.Errorf("%s: secret must not be empty", b.Name())
-	}
-	if period <= 0 {
-		return none, fmt.Errorf("%s: period must be positive", b.Name())
-	}
 	if skew < 0 {
 		return none, fmt.Errorf("%s: skew must not be negative", b.Name())
 	}
 	if skew > maxSkew {
 		return none, fmt.Errorf("%s: skew must not exceed %d", b.Name(), maxSkew)
 	}
-	d, err := resolveDigits(digits)
+	d, a, err := resolveCommonOpts(b, secret, period, digits, algorithm)
 	if err != nil {
-		return none, fmt.Errorf("%s: %w", b.Name(), err)
-	}
-	a, err := resolveAlgorithm(algorithm)
-	if err != nil {
-		return none, fmt.Errorf("%s: %w", b.Name(), err)
+		return none, err
 	}
 	ok, err := totp.ValidateCustom(code, secret, m.at(ts), totp.ValidateOpts{
 		Period: uint(period), Skew: uint(skew), Digits: d, Algorithm: a,
 	})
 	if err != nil {
+		// A wrong-length code is simply not a valid code, not an operational
+		// fault: report False so `if validate(code, secret): ...` denies access
+		// rather than throwing. Without this, a mistyped or empty code — or an
+		// attacker deliberately sending a wrong-length string — turns every
+		// validate call into an uncaught Starlark exception instead of a clean
+		// rejection. Genuine faults (e.g. an invalid base32 secret) still surface.
+		if errors.Is(err, otp.ErrValidateInputInvalidLength) {
+			return starlark.Bool(false), nil
+		}
 		return none, fmt.Errorf("totp: %w", err)
 	}
 	return starlark.Bool(ok), nil

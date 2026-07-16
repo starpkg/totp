@@ -81,10 +81,14 @@ Validates `code` against `secret`.
   `"SHA512"` (default `"SHA1"`).
 
 **Returns:** `True` if the code is valid for the (skewed) window, else `False`
-(`bool`).
+(`bool`). A malformed `code` — the wrong length for `digits`, or empty — is a
+clean `False`, not an error, so `if validate(user_input, secret): ...` denies a
+mistyped code rather than raising.
 
-**Errors:** Raised if `secret` is empty, if `period <= 0`, if `skew` is negative
-or exceeds `1000`, if `digits` is not `6` or `8`, or if `algorithm` is unknown.
+**Errors:** Raised for a misconfiguration or a genuinely undecodable secret: if
+`secret` is empty or not valid base32, if `period <= 0`, if `skew` is negative or
+exceeds `1000`, if `digits` is not `6` or `8`, or if `algorithm` is unknown. (A
+wrong-length `code` is not one of these — it returns `False`.)
 
 > The `skew` cap of `1000` (>8 hours at the 30s default) is far above any real
 > 2FA flow; it only stops a hostile script from forcing an unbounded
