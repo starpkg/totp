@@ -68,10 +68,13 @@ and examples of every builtin above, plus host-side time control
 
 ## Configuration
 
-The module's options (`default_period`, `default_digits`) are configured via
-environment variables (`TOTP_*`) or per-option `get_<key>` / `set_<key>` accessor
-builtins, and serve as *defaults* that each per-call `period` / `digits` keyword
-overrides. See the
+The module's options (`default_period`, `default_digits`, `max_skew`) are
+configured via environment variables (`TOTP_*`) or per-option `get_<key>` /
+`set_<key>` accessor builtins. `default_period` / `default_digits` serve as
+*defaults* that each per-call `period` / `digits` keyword overrides. `max_skew`
+is **host-only** (a read-only `get_max_skew`, no setter) — the ceiling on
+`validate`'s skew (replay) window that a script cannot raise, configured
+host-side via `TOTP_MAX_SKEW` (default `1000`). See the
 [Configuration section of docs/API.md](docs/API.md#configuration) for the full
 option table, defaults, and accessors.
 

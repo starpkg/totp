@@ -23,6 +23,7 @@ const ModuleName = "totp"
 const (
 	configKeyDefaultPeriod = "default_period"
 	configKeyDefaultDigits = "default_digits"
+	configKeyMaxSkew       = "max_skew"
 )
 
 const (
@@ -37,9 +38,13 @@ const (
 // O(skew) HMAC loop (each extra skew period adds two more HMAC computations in
 // totp.ValidateCustom) or an unbounded secret allocation in totp.Generate.
 const (
-	// maxSkew caps validate's skew window. ±1000 periods is >8 hours at the
-	// 30s default — vastly more tolerance than any real 2FA flow needs.
-	maxSkew = 1000
+	// defaultMaxSkew is the default ceiling on validate's skew window. ±1000
+	// periods is >8 hours at the 30s default — vastly more tolerance than any
+	// real 2FA flow needs, but it is only the DEFAULT: the host-only max_skew
+	// option lets a deployment tighten the accepted window (e.g. to ±1) so a
+	// script cannot open an 8-hour replay window. It is host-only so a script
+	// cannot raise it.
+	defaultMaxSkew = 1000
 	// maxSecretSize caps new_secret's secret_size in bytes. 1024 bytes is
 	// 8192 bits, far above the 20-byte (160-bit) RFC-recommended default.
 	maxSecretSize = 1024
@@ -65,6 +70,11 @@ func newModule(clock func() time.Time) *Module {
 	cm, _ := base.NewConfigurableModuleWithConfigOptions(
 		genConfigOption(configKeyDefaultPeriod, "Default TOTP period in seconds", defaultPeriod),
 		genConfigOption(configKeyDefaultDigits, "Default number of code digits (6 or 8)", defaultDigits),
+		// Host-only: the ceiling on validate's skew window is a security lever
+		// (a wide window is a replay window), so a script must not be able to
+		// raise it. base emits no set_max_skew builtin for a host-only option and
+		// snapshots the env at construction so it can't be re-widened at runtime.
+		genConfigOption(configKeyMaxSkew, "Maximum accepted skew window in periods (host-only ceiling)", defaultMaxSkew).SetHostOnly(true),
 	)
 	return &Module{cfgMod: cm, ext: cm.Extend(), clock: clock}
 }
@@ -131,6 +141,16 @@ func resolveCommonOpts(b *starlark.Builtin, secret string, period, digits int, a
 	return d, a, nil
 }
 
+// maxSkew resolves the host-configured ceiling on validate's skew window,
+// falling back to the default when unset or non-positive (a non-positive value
+// would disable the ceiling, which it exists to enforce).
+func (m *Module) maxSkew() int {
+	if v := m.ext.GetInt(configKeyMaxSkew); v > 0 {
+		return v
+	}
+	return defaultMaxSkew
+}
+
 // at resolves the evaluation time: ts>0 means that Unix second, else the clock.
 func (m *Module) at(ts int64) time.Time {
 	if ts > 0 {
@@ -186,8 +206,8 @@ func (m *Module) validate(thread *starlark.Thread, b *starlark.Builtin, args sta
 	if skew < 0 {
 		return none, fmt.Errorf("%s: skew must not be negative", b.Name())
 	}
-	if skew > maxSkew {
-		return none, fmt.Errorf("%s: skew must not exceed %d", b.Name(), maxSkew)
+	if limit := m.maxSkew(); skew > limit {
+		return none, fmt.Errorf("%s: skew must not exceed %d", b.Name(), limit)
 	}
 	d, a, err := resolveCommonOpts(b, secret, period, digits, algorithm)
 	if err != nil {

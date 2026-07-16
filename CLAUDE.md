@@ -58,11 +58,15 @@ because the surface is three pure functions over one third-party SDK.
   - `Module` — wraps a `base.ConfigurableModule` (+ its `ConfigurableModuleExt`
     for typed config reads) and a `clock func() time.Time`. `NewModule()` uses
     `time.Now`; `NewModuleWithClock(clock)` injects one.
-  - Config: two options registered via
+  - Config: three options registered via
     `base.NewConfigurableModuleWithConfigOptions` —
-    `default_period` (30) and `default_digits` (6) — each given a name,
-    description, and an env var derived from `ModuleName` (`TOTP_DEFAULT_PERIOD`,
-    `TOTP_DEFAULT_DIGITS`) by `genConfigOption`.
+    `default_period` (30) and `default_digits` (6), plus `max_skew` (1000,
+    **host-only** via `SetHostOnly(true)`) — each given a name, description, and
+    an env var derived from `ModuleName` (`TOTP_DEFAULT_PERIOD`,
+    `TOTP_DEFAULT_DIGITS`, `TOTP_MAX_SKEW`) by `genConfigOption`. `max_skew` is
+    the host-only ceiling on `validate`'s skew window (a wide window is a replay
+    window), resolved via `m.maxSkew()`; base emits no `set_max_skew` builtin, so
+    a script cannot raise it. Keep it host-only.
   - `LoadModule()` — registers the three script-facing builtins:
     **`generate_code`**, **`validate`**, **`new_secret`**.
   - The three handler methods (`generateCode`, `validate`, `newSecret`) — each

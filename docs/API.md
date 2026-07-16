@@ -76,7 +76,8 @@ Validates `code` against `secret`.
 - `digits` (int, optional): Number of code digits; must be `6` or `8`. Defaults
   to the `default_digits` config option (`6`).
 - `skew` (int, optional): How many periods of clock skew to tolerate on each
-  side (default `1`, i.e. ±1 period). Must be in the range `0..1000`.
+  side (default `1`, i.e. ±1 period). Must be in the range `0..max_skew`, where
+  `max_skew` is the host-only ceiling (default `1000`; the host can tighten it).
 - `algorithm` (string, optional): HMAC hash — `"SHA1"`, `"SHA256"`, or
   `"SHA512"` (default `"SHA1"`).
 
@@ -87,12 +88,15 @@ mistyped code rather than raising.
 
 **Errors:** Raised for a misconfiguration or a genuinely undecodable secret: if
 `secret` is empty or not valid base32, if `period <= 0`, if `skew` is negative or
-exceeds `1000`, if `digits` is not `6` or `8`, or if `algorithm` is unknown. (A
-wrong-length `code` is not one of these — it returns `False`.)
+exceeds `max_skew` (the host-only ceiling, default `1000`), if `digits` is not
+`6` or `8`, or if `algorithm` is unknown. (A wrong-length `code` is not one of
+these — it returns `False`.)
 
-> The `skew` cap of `1000` (>8 hours at the 30s default) is far above any real
-> 2FA flow; it only stops a hostile script from forcing an unbounded
-> O(`skew`) HMAC loop on the host.
+> The default `skew` ceiling of `1000` (>8 hours at the 30s default) is far above
+> any real 2FA flow; it stops a hostile script from forcing an unbounded
+> O(`skew`) HMAC loop on the host. Because a wide window is also a **replay
+> window**, the ceiling is the host-only `max_skew` option — a deployment can
+> tighten it (e.g. to `1`) and a script cannot raise it.
 
 **Example:**
 
@@ -166,9 +170,11 @@ These constraints apply across the builtins above:
 - `algorithm` must be `"SHA1"`, `"SHA256"`, or `"SHA512"` (an empty string is
   treated as `"SHA1"`).
 - `period` must be positive.
-- `skew` must be in `0..1000`; `secret_size` must be in `1..1024`. The defaults
-  (`skew=1`, `secret_size=20`) are the historical values; the caps are safety
-  rails that change no real script's behavior.
+- `skew` must be in `0..max_skew` (the host-only ceiling, default `1000`);
+  `secret_size` must be in `1..1024`. The defaults (`skew=1`, `secret_size=20`)
+  are the historical values; the caps are safety rails that change no real
+  script's behavior. `max_skew` is host-only, so a script cannot raise the
+  accepted window (see [Configuration](#configuration)).
 
 ## Host-side time control
 
@@ -197,14 +203,18 @@ An option's value resolves in priority order: an explicit `set_<key>` value, the
 environment variable, then the default. These options are *defaults* only —
 every per-call `period` / `digits` keyword on a builtin overrides them.
 
-None of the `totp` options are secret, so every option exposes **both**
-`get_<key>` and `set_<key>`. (A secret option would expose only its `set_<key>`
-accessor — never a getter — but this module has none.)
+None of the `totp` options are secret, so their values are readable via
+`get_<key>`. `default_period` and `default_digits` are also script-settable via
+`set_<key>`. `max_skew` is **host-only**: it is a security ceiling (a wide skew
+window is a replay window), so a script must not be able to raise it — there is
+**no `set_max_skew`**, and its environment value is snapshotted at construction
+so it cannot be re-widened at runtime. Configure it host-side via `TOTP_MAX_SKEW`.
 
 | Option | Getter | Setter | Type | Env var | Default | Description |
 |--------|--------|--------|------|---------|---------|-------------|
 | `default_period` | `get_default_period` | `set_default_period` | int | `TOTP_DEFAULT_PERIOD` | `30` | Default TOTP period in seconds |
 | `default_digits` | `get_default_digits` | `set_default_digits` | int | `TOTP_DEFAULT_DIGITS` | `6` | Default number of code digits (6 or 8) |
+| `max_skew` | `get_max_skew` | _(host-only, none)_ | int | `TOTP_MAX_SKEW` | `1000` | Maximum accepted `skew` window in periods; the host-only ceiling on `validate`'s replay window — a script cannot raise it |
 
 **Example:**
 
