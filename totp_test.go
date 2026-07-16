@@ -351,6 +351,9 @@ n = len(generate_code("JBSWY3DPEHPK3PXP", time=1000000000))
 
 func TestHardeningBounds(t *testing.T) {
 	const sec = "JBSWY3DPEHPK3PXP"
+	// Pin the skew ceiling to its default so the "exceed 1000" assertions are
+	// hermetic — an ambient TOTP_MAX_SKEW would otherwise change the ceiling.
+	t.Setenv("TOTP_MAX_SKEW", "1000")
 
 	// Absurd skew / secret_size are rejected with a clean Starlark error
 	// (never an unbounded HMAC loop or a giant allocation on the host).
@@ -395,6 +398,53 @@ has_secret = len(k.secret) > 0
 	}
 	if res["has_secret"] != true {
 		t.Errorf("secret_size=1024 (the cap) produced no secret")
+	}
+}
+
+// TestMaxSkewHostCeiling verifies the host can tighten the skew ceiling below
+// the default of 1000, and a script cannot exceed the host's value.
+func TestMaxSkewHostCeiling(t *testing.T) {
+	const sec = "JBSWY3DPEHPK3PXP"
+	t.Setenv("TOTP_MAX_SKEW", "2")
+
+	// A script asking for more than the host's ceiling is rejected, naming the
+	// host value (2), not the default (1000).
+	_, err := run(t, `load("totp","validate"); validate("123456", "`+sec+`", skew=5)`)
+	if err == nil || !strings.Contains(err.Error(), "skew must not exceed 2") {
+		t.Fatalf("skew=5 under a host ceiling of 2 should be rejected naming 2, got %v", err)
+	}
+
+	// At/under the host ceiling still works.
+	res, err := run(t, `
+load("totp", "validate", "generate_code")
+code = generate_code("`+sec+`", time=1000000000)
+ok = validate(code, "`+sec+`", time=1000000000, skew=2)
+`)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if res["ok"] != true {
+		t.Errorf("skew=2 (the host ceiling) was rejected, want accepted")
+	}
+}
+
+// TestMaxSkewIsHostOnly is the capability-gate guard: max_skew is a security
+// lever (a wide skew window is a replay window), so a script must not be able to
+// raise it. base emits get_max_skew but NO set_max_skew for a host-only option.
+func TestMaxSkewIsHostOnly(t *testing.T) {
+	// Pin the default so the get_max_skew() assertion is hermetic.
+	t.Setenv("TOTP_MAX_SKEW", "1000")
+	// The setter is not exported to Starlark.
+	if _, err := run(t, `load("totp", "set_max_skew")`); err == nil {
+		t.Fatal("set_max_skew is loadable — a script can widen the skew ceiling")
+	}
+	// The read-only getter is available (the value is not secret).
+	res, err := run(t, `load("totp", "get_max_skew"); v = get_max_skew()`)
+	if err != nil {
+		t.Fatalf("get_max_skew should be loadable: %v", err)
+	}
+	if v, _ := res["v"].(int64); v != int64(defaultMaxSkew) {
+		t.Errorf("get_max_skew() = %v, want default %d", res["v"], defaultMaxSkew)
 	}
 }
 
