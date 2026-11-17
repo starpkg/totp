@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`starpkg/totp` is an **L4 domain module** of the Star\* ecosystem: it exposes
+`starpkg/totp` is an **L3 domain module** of the Star\* ecosystem: it exposes
 [TOTP](https://datatracker.ietf.org/doc/html/rfc6238) (time-based one-time
 passwords, RFC 6238) to Starlark scripts. A script imports the module, mints a
 secret + provisioning URI, generates the current code, and validates codes a
@@ -137,7 +137,7 @@ Three layers must stay in sync (enforced by the doc standard,
 
 - **Floor = go 1.19** (this repo's `go.mod`); a repo's floor only rises in its
   own isolated pin-upgrade PR.
-- **CI matrix** = `[1.19.x, 1.25.x]` via the centralized reusable workflow in
+- **CI matrix** = `[1.19.x, 1.27.x]` via the centralized reusable workflow in
   `1set/meta` (`go-ci.yml`, pinned to a commit SHA; `doc-coverage: true` adds the
   README gate).
 - **Pin upgrade is the last PR of the series** — `go.starlark.net` + `1set/*`
